@@ -13,6 +13,7 @@ import {
 
 export default class BoardModel {
   board: Array<Array<Piece | undefined>>;
+  enPassantPos: Position | undefined;
   constructor() {
     this.board = [...Array(8)].map(() => Array(8));
     this.readFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
@@ -20,7 +21,7 @@ export default class BoardModel {
 
   readFen(fen: string) {
     this.board = [...Array(8)].map(() => Array(8));
-    let arr = fen.split("");
+    const arr = fen.split("");
     let i = 0;
     let j = 0;
     let ch = arr.shift();
@@ -39,10 +40,10 @@ export default class BoardModel {
   }
 
   get flat() {
-    let myReturn: Array<PieceType> = Array(64);
+    const myReturn: Array<PieceType> = Array(64);
     for (let i = 0; i < 8; i++) {
       for (let j = 0; j < 8; j++) {
-        let piece = this.board[i][j];
+        const piece = this.board[i][j];
         myReturn[i + j * 8] = piece ? piece.type : "_";
       }
     }
@@ -59,7 +60,7 @@ export default class BoardModel {
 
   _seek(pos: Position, disp: disp) {
     let candidatePos = pos.add(disp);
-    let candidateArr = [];
+    const candidateArr = [];
     const piece = this.posAt(pos);
     if (piece == undefined) {
       return [];
@@ -93,6 +94,37 @@ export default class BoardModel {
     this._place(undefined, mover_idx);
   }
 
+  play(mover_idx: number, dest_idx: number) {
+    const piece = this.at(mover_idx);
+    if (piece === undefined) {
+      return;
+    }
+    const pos = Position.fromIdx(mover_idx);
+    const startingRow = piece.color == "white" ? 6 : 1;
+    const forwardDir = piece.color == "white" ? -1 : 1;
+    const posInFront = pos.add([0, forwardDir]);
+    const posIn2Front = pos.add([0, 2 * forwardDir]);
+
+    // enpassant
+    if (
+      piece.rank === "p" &&
+      this.enPassantPos &&
+      dest_idx === this.enPassantPos.flat
+    ) {
+      this._place(undefined, this.enPassantPos.add([0, -forwardDir]).flat);
+    }
+    if (
+      piece.rank === "p" &&
+      pos.y === startingRow &&
+      dest_idx === posIn2Front.flat
+    ) {
+      this.enPassantPos = posInFront;
+    } else {
+      this.enPassantPos = undefined;
+    }
+    this.move(mover_idx, dest_idx);
+  }
+
   validSquares(idx: number) {
     const activePiece = this.at(idx);
     if (activePiece === undefined) {
@@ -101,31 +133,35 @@ export default class BoardModel {
     const pos = Position.fromIdx(idx);
     const myColor = activePiece.color;
     const theirColor = activePiece.color === "white" ? "black" : "white";
+    const forwardDir = activePiece.color == "white" ? -1 : 1;
+    const startingRow = activePiece.color == "white" ? 6 : 1;
+    const posInFront = pos.add([0, forwardDir]);
+    const posInFront2 = posInFront.add([0, forwardDir]);
+    console.log(this.enPassantPos);
+    const pawnCapturePos = [
+      [1, forwardDir],
+      [-1, forwardDir],
+    ]
+      .map((disp) => pos.add(disp as disp))
+      .filter(
+        (p) =>
+          p.isValid &&
+          (this.posAt(p)?.color === theirColor || // capture enemy
+            (p.eq(this.enPassantPos) && this.posAt(p) === undefined)) // en passant
+      );
+    console.log(pawnCapturePos);
 
     let arr: Array<Position> = [];
     switch (activePiece.rank) {
       case "p":
-        const forwardDir = activePiece.color == "white" ? -1 : 1;
-        const startingRow = activePiece.color == "white" ? 6 : 1;
-
-        let posInFront = pos.add([0, forwardDir]);
-
         if (this.posAt(posInFront) === undefined) {
           arr.push(posInFront);
-          let posInFront2 = posInFront.add([0, forwardDir]);
           if (pos.y === startingRow && this.posAt(posInFront2) === undefined) {
             arr.push(posInFront2);
           }
         }
 
-        let capturePos = [
-          [1, forwardDir],
-          [-1, forwardDir],
-        ]
-          .map((disp) => pos.add(disp as disp))
-          .filter((p) => p.isValid && this.posAt(p)?.color === theirColor);
-
-        arr = arr.concat(capturePos);
+        arr = arr.concat(pawnCapturePos);
         break;
 
       case "n":

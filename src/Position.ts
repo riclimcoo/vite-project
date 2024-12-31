@@ -16,6 +16,10 @@ export class Position {
     return new Position(z * this.x, z * this.y);
   }
 
+  eq(other: Position | undefined) {
+    return other !== undefined && this.x === other.x && this.y === other.y;
+  }
+
   get flat() {
     return this.x + this.y * 8;
   }

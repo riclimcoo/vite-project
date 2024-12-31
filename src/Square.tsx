@@ -13,7 +13,7 @@ export default function Square({
   selectionState: selectionStateType;
   onClick: any;
 }) {
-  let className = getClassName(idx, selectionState);
+  const className = getClassName(idx, selectionState);
   return (
     <button className={className} onClick={onClick}>
       {/* {idx} */}

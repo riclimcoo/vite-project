@@ -1,7 +1,7 @@
 import { useState } from "react";
 import Square from "./Square";
 import { PieceType } from "./utilities";
-import BoardModel from "./chess";
+import BoardModel from "./BoardModel";
 
 export function Board({
   activeSquare,
@@ -10,11 +10,11 @@ export function Board({
   highlightedSquares,
   setHighlightedSquares,
 }: {
-  activeSquare: any;
-  setActiveSquare: any;
+  activeSquare: number | null;
+  setActiveSquare: (x: number | null) => void;
   boardModel: BoardModel;
-  highlightedSquares: any;
-  setHighlightedSquares: any;
+  highlightedSquares: Array<number>;
+  setHighlightedSquares: (x: Array<number>) => void;
 }) {
   const [board, setBoard] = useState<Array<PieceType>>(boardModel.flat);
 
@@ -27,7 +27,7 @@ export function Board({
       setActiveSquare(newIdx);
       setHighlightedSquares(boardModel.validSquares(newIdx));
     } else if (highlightedSquares.includes(newIdx)) {
-      boardModel.move(activeSquare, newIdx);
+      boardModel.play(activeSquare, newIdx);
       setBoard(boardModel.flat);
       clear();
     } else {

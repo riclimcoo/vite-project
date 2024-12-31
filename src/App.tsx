@@ -1,11 +1,10 @@
-import { act, Children, ReactChildren, useState, useRef } from "react";
-import { PieceType } from "./utilities";
+import { useState } from "react";
 // import reactLogo from './assets/react.svg'
 // import viteLogo from '/vite.svg'
 import "./App.css";
 import { Board } from "./Board";
-import BoardModel, { boardModel } from "./chess";
 import { Center } from "./Center";
+import { boardModel } from "./BoardModel";
 
 function App() {
   const [activeSquare, setActiveSquare] = useState<number | null>(null);

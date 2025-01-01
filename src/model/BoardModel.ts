@@ -7,20 +7,19 @@ import {
   KNIGHT_LS,
   ORTHO,
   PieceType,
-  quot,
   STAR,
 } from "../utilities";
 
 export default class BoardModel {
-  board: Array<Array<Piece | undefined>>;
+  board: Array<Piece | undefined>;
   enPassantPos: Position | undefined;
   constructor() {
-    this.board = [...Array(8)].map(() => Array(8));
+    this.board = Array(64);
     this.readFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
   }
 
   readFen(fen: string) {
-    this.board = [...Array(8)].map(() => Array(8));
+    this.board = Array(64);
     const arr = fen.split("");
     let i = 0;
     let j = 0;
@@ -29,7 +28,7 @@ export default class BoardModel {
       if (isNumericChar(ch)) {
         i += Number(ch);
       } else if (isPieceChar(ch)) {
-        this.board[i][j] = new Piece(ch as PieceType);
+        this.board[i + j * 8] = new Piece(ch as PieceType);
         i += 1;
       } else if (ch == "/") {
         i = 0;
@@ -40,22 +39,15 @@ export default class BoardModel {
   }
 
   get flat() {
-    const myReturn: Array<PieceType | undefined> = Array(64);
-    for (let i = 0; i < 8; i++) {
-      for (let j = 0; j < 8; j++) {
-        const piece = this.board[i][j];
-        myReturn[i + j * 8] = piece ? piece.type : undefined;
-      }
-    }
-    return myReturn;
+    return this.board.map((p) => (p ? p.type : undefined));
   }
 
   at(idx: number) {
-    return this.board[idx % 8][quot(idx, 8)];
+    return this.board[idx];
   }
 
   atPos(pos: Position) {
-    return this.board[pos.x][pos.y];
+    return this.board[pos.x + pos.y * 8];
   }
 
   private seek(pos: Position, disp: disp) {
@@ -89,21 +81,41 @@ export default class BoardModel {
   }
 
   _place(piece: Piece | undefined, dest_idx: number) {
-    this.board[dest_idx % 8][quot(dest_idx, 8)] = piece;
+    this.board[dest_idx] = piece;
   }
 
   private placeAtPos(piece: Piece | undefined, pos: Position) {
-    this.board[pos.x][pos.y] = piece;
+    this.board[pos.x + pos.y * 8] = piece;
   }
 
   private get boardCopy() {
-    return this.board.map((inner) => inner.slice());
+    return this.board.slice();
+  }
+
+  private get copy() {
+    const copy = new BoardModel();
+    copy.board = this.board.slice();
+    copy.enPassantPos = this.enPassantPos;
+    return copy;
   }
 
   move(mover_idx: number, dest_idx: number) {
     const piece = this.at(mover_idx);
-    this._place(piece, dest_idx);
-    this._place(undefined, mover_idx);
+    if (piece === undefined) {
+      return;
+    }
+    // enpassant
+    else if (
+      piece.rank === "p" &&
+      this.enPassantPos &&
+      dest_idx === this.enPassantPos.toIdx
+    ) {
+      const forwardDir = piece.color == "white" ? -1 : 1;
+      this._place(undefined, this.enPassantPos.add([0, -forwardDir]).toIdx);
+    } else {
+      this._place(piece, dest_idx);
+      this._place(undefined, mover_idx);
+    }
   }
 
   play(mover_idx: number, dest_idx: number) {
@@ -117,14 +129,6 @@ export default class BoardModel {
     const posInFront = pos.add([0, forwardDir]);
     const posIn2Front = pos.add([0, 2 * forwardDir]);
 
-    // enpassant
-    if (
-      piece.rank === "p" &&
-      this.enPassantPos &&
-      dest_idx === this.enPassantPos.toIdx
-    ) {
-      this._place(undefined, this.enPassantPos.add([0, -forwardDir]).toIdx);
-    }
     if (
       piece.rank === "p" &&
       pos.y === startingRow &&
@@ -183,17 +187,17 @@ export default class BoardModel {
     if (activePiece === undefined) {
       return [];
     }
+    const myColor = activePiece.color;
     const squaresToCheck = this.validSquaresWithoutCheckingForChecks(idx);
-    const prevBoard = this.boardCopy;
     const newValidSquares: Array<number> = [];
-    // for (const destIdx of squaresToCheck) {
-    //   this.move(idx, destIdx);
-    //   if (!this.underCheck(activePiece.color)) {
-    //     newValidSquares.push(destIdx);
-    //   }
-    //   this.board = prevBoard;
-    // }
-    return squaresToCheck;
+    for (const destIdx of squaresToCheck) {
+      const tempGame = this.copy;
+      tempGame.move(idx, destIdx);
+      if (!tempGame.underCheck(myColor)) {
+        newValidSquares.push(destIdx);
+      }
+    }
+    return newValidSquares;
   }
 
   validSquaresWithoutCheckingForChecks(idx: number) {

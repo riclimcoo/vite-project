@@ -21,6 +21,7 @@ export function Board({
   );
 
   function handleClick(newIdx: number) {
+    console.log(board);
     function clear() {
       setActiveSquare(null);
       setHighlightedSquares([]);
@@ -49,9 +50,9 @@ export function Board({
 
   return (
     <div className="grid grid-cols-8 shadow-md">
-      {board.map((el, idx) => (
+      {[...Array(64)].map((_, idx) => (
         <Square
-          piece={el}
+          piece={board.at(idx)}
           idx={idx}
           selectionState={handleState(idx)}
           key={idx}

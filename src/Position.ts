@@ -20,7 +20,7 @@ export class Position {
     return other !== undefined && this.x === other.x && this.y === other.y;
   }
 
-  get flat() {
+  get toIdx() {
     return this.x + this.y * 8;
   }
 

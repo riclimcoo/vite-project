@@ -1,7 +1,7 @@
 import { useState } from "react";
 import Square from "./Square";
 import { PieceType } from "./utilities";
-import BoardModel from "./BoardModel";
+import BoardModel from "./model/BoardModel";
 
 export function Board({
   activeSquare,
@@ -16,7 +16,9 @@ export function Board({
   highlightedSquares: Array<number>;
   setHighlightedSquares: (x: Array<number>) => void;
 }) {
-  const [board, setBoard] = useState<Array<PieceType>>(boardModel.flat);
+  const [board, setBoard] = useState<Array<PieceType | undefined>>(
+    boardModel.flat
+  );
 
   function handleClick(newIdx: number) {
     function clear() {
@@ -44,6 +46,7 @@ export function Board({
       return "unselected";
     }
   }
+
   return (
     <div className="grid grid-cols-8 shadow-md">
       {board.map((el, idx) => (

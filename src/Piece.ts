@@ -11,7 +11,8 @@ export class Piece {
   get color() {
     return this.type[0] === this.type[0].toUpperCase() ? "white" : "black";
   }
-  toString() {
-    return this.type;
+
+  get enemyColor() {
+    return this.type[0] === this.type[0].toUpperCase() ? "black" : "white";
   }
 }

@@ -1,5 +1,5 @@
-import { Piece } from "./Piece";
-import { disp, Position } from "./Position";
+import { Piece } from "../Piece";
+import { disp, Position } from "../Position";
 import {
   DIAG,
   isNumericChar,
@@ -9,7 +9,7 @@ import {
   PieceType,
   quot,
   STAR,
-} from "./utilities";
+} from "../utilities";
 
 export default class BoardModel {
   board: Array<Array<Piece | undefined>>;
@@ -40,11 +40,11 @@ export default class BoardModel {
   }
 
   get flat() {
-    const myReturn: Array<PieceType> = Array(64);
+    const myReturn: Array<PieceType | undefined> = Array(64);
     for (let i = 0; i < 8; i++) {
       for (let j = 0; j < 8; j++) {
         const piece = this.board[i][j];
-        myReturn[i + j * 8] = piece ? piece.type : "_";
+        myReturn[i + j * 8] = piece ? piece.type : undefined;
       }
     }
     return myReturn;
@@ -54,14 +54,14 @@ export default class BoardModel {
     return this.board[idx % 8][quot(idx, 8)];
   }
 
-  posAt(pos: Position) {
+  atPos(pos: Position) {
     return this.board[pos.x][pos.y];
   }
 
-  _seek(pos: Position, disp: disp) {
+  private seek(pos: Position, disp: disp) {
     let candidatePos = pos.add(disp);
     const candidateArr = [];
-    const piece = this.posAt(pos);
+    const piece = this.atPos(pos);
     if (piece == undefined) {
       return [];
     }
@@ -69,10 +69,10 @@ export default class BoardModel {
     const theirColor = piece.color === "white" ? "black" : "white";
     while (
       candidatePos.isValid &&
-      this.posAt(candidatePos)?.color !== myColor
+      this.atPos(candidatePos)?.color !== myColor
     ) {
       candidateArr.push(candidatePos);
-      if (this.posAt(candidatePos)?.color == theirColor) {
+      if (this.atPos(candidatePos)?.color == theirColor) {
         break;
       }
       candidatePos = candidatePos.add(disp);
@@ -80,8 +80,12 @@ export default class BoardModel {
     return candidateArr;
   }
 
-  _multi_seek(pos: Position, disps: Array<disp>) {
-    return disps.map((disp) => this._seek(pos, disp as disp)).flat();
+  private seekFromDispArr(pos: Position, disps: Array<disp>) {
+    return disps.map((disp) => this.seek(pos, disp as disp)).flat();
+  }
+
+  private sweepFromDispArr(pos: Position, dispArr: Array<disp>) {
+    return dispArr.map((disp) => pos.add(disp)).filter((p) => p.isValid);
   }
 
   _place(piece: Piece | undefined, dest_idx: number) {
@@ -109,20 +113,60 @@ export default class BoardModel {
     if (
       piece.rank === "p" &&
       this.enPassantPos &&
-      dest_idx === this.enPassantPos.flat
+      dest_idx === this.enPassantPos.toIdx
     ) {
-      this._place(undefined, this.enPassantPos.add([0, -forwardDir]).flat);
+      this._place(undefined, this.enPassantPos.add([0, -forwardDir]).toIdx);
     }
     if (
       piece.rank === "p" &&
       pos.y === startingRow &&
-      dest_idx === posIn2Front.flat
+      dest_idx === posIn2Front.toIdx
     ) {
       this.enPassantPos = posInFront;
     } else {
       this.enPassantPos = undefined;
     }
     this.move(mover_idx, dest_idx);
+  }
+
+  _forward(pos: Position, d: number) {
+    const piece = this.atPos(pos);
+    if (piece === undefined) return;
+    const forwardDir = piece.color == "white" ? -1 : 1;
+    return pos.add([0, d * forwardDir]);
+  }
+
+  controlledSquares(idx: number) {
+    const activePiece = this.at(idx);
+    if (activePiece === undefined) {
+      return [];
+    }
+    const pos = Position.fromIdx(idx);
+    const forwardDir = activePiece.color == "white" ? -1 : 1;
+    const PAWN_V = [
+      [1, forwardDir],
+      [-1, forwardDir],
+    ] as Array<disp>;
+
+    switch (activePiece.rank) {
+      case "p":
+        return this.sweepFromDispArr(pos, PAWN_V);
+
+      case "n":
+        return this.sweepFromDispArr(pos, KNIGHT_LS);
+
+      case "k":
+        return this.sweepFromDispArr(pos, STAR);
+
+      case "r":
+        return this.seekFromDispArr(pos, ORTHO);
+
+      case "b":
+        return this.seekFromDispArr(pos, DIAG);
+
+      case "q":
+        return this.seekFromDispArr(pos, STAR);
+    }
   }
 
   validSquares(idx: number) {
@@ -137,7 +181,6 @@ export default class BoardModel {
     const startingRow = activePiece.color == "white" ? 6 : 1;
     const posInFront = pos.add([0, forwardDir]);
     const posInFront2 = posInFront.add([0, forwardDir]);
-    console.log(this.enPassantPos);
     const pawnCapturePos = [
       [1, forwardDir],
       [-1, forwardDir],
@@ -146,48 +189,26 @@ export default class BoardModel {
       .filter(
         (p) =>
           p.isValid &&
-          (this.posAt(p)?.color === theirColor || // capture enemy
-            (p.eq(this.enPassantPos) && this.posAt(p) === undefined)) // en passant
+          (this.atPos(p)?.color === theirColor || // capture enemy
+            (p.eq(this.enPassantPos) && this.atPos(p) === undefined)) // en passant
       );
-    console.log(pawnCapturePos);
 
     let arr: Array<Position> = [];
     switch (activePiece.rank) {
       case "p":
-        if (this.posAt(posInFront) === undefined) {
+        if (this.atPos(posInFront) === undefined) {
           arr.push(posInFront);
-          if (pos.y === startingRow && this.posAt(posInFront2) === undefined) {
+          if (pos.y === startingRow && this.atPos(posInFront2) === undefined) {
             arr.push(posInFront2);
           }
         }
-
         arr = arr.concat(pawnCapturePos);
         break;
 
-      case "n":
-        arr = KNIGHT_LS.map((disp) => pos.add(disp));
-        break;
-
-      case "k":
-        arr = STAR.map((disp) => pos.add(disp));
-        break;
-
-      case "r":
-        arr = this._multi_seek(pos, ORTHO);
-        break;
-
-      case "b":
-        arr = this._multi_seek(pos, DIAG);
-        break;
-
-      case "q":
-        arr = this._multi_seek(pos, STAR);
-        break;
+      default:
+        arr = this.controlledSquares(idx);
     }
-    arr = arr.filter((pos) => pos.isValid);
-    arr = arr.filter((pos) => this.posAt(pos)?.color !== myColor);
-    return arr.map((pos) => pos.flat);
+    arr = arr.filter((pos) => this.atPos(pos)?.color !== myColor);
+    return arr.map((pos) => pos.toIdx);
   }
 }
-
-export const boardModel = new BoardModel();

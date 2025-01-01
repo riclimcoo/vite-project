@@ -8,7 +8,7 @@ export default function Square({
   selectionState,
   onClick,
 }: {
-  piece: PieceType;
+  piece: PieceType | undefined;
   idx: number;
   selectionState: selectionStateType;
   onClick: any;
@@ -17,7 +17,7 @@ export default function Square({
   return (
     <button className={className} onClick={onClick}>
       {/* {idx} */}
-      {FancyPiece[piece]}
+      {piece && FancyPiece[piece]}
     </button>
   );
 }

@@ -1,16 +1,20 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 // import reactLogo from './assets/react.svg'
 // import viteLogo from '/vite.svg'
 import "./App.css";
 import { Board } from "./Board";
 import { Center } from "./Center";
-import { boardModel } from "./BoardModel";
+import BoardModel from "./model/BoardModel";
 
 function App() {
   const [activeSquare, setActiveSquare] = useState<number | null>(null);
   const [highlightedSquares, setHighlightedSquares] = useState<Array<number>>(
     []
   );
+  const boardModel = useRef<BoardModel | null>(null);
+  if (boardModel.current === null) {
+    boardModel.current = new BoardModel();
+  }
 
   return (
     <div
@@ -21,7 +25,7 @@ function App() {
     >
       <Center>
         <Board
-          boardModel={boardModel}
+          boardModel={boardModel.current}
           activeSquare={activeSquare}
           setActiveSquare={setActiveSquare}
           highlightedSquares={highlightedSquares}

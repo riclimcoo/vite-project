@@ -18,6 +18,8 @@ export enum FancyPiece {
   "p" = "♟",
 }
 
+export type playerColor = "black" | "white";
+
 export function isNumericChar(c: string) {
   return typeof c === "string" && c.length === 1 && c >= "0" && c <= "9";
 }
@@ -29,6 +31,11 @@ export function isPieceChar(ch: string) {
 export function quot(x: number, y: number) {
   return Math.trunc(x / y);
 }
+
+export function flipColor(color: playerColor) {
+  return color === "white" ? "black" : "white";
+}
+
 export type rank = "p" | "q" | "k" | "n" | "b" | "r";
 
 export const ORTHO = [

@@ -2,20 +2,24 @@ import { Piece } from "../Piece";
 import { disp, Position } from "../Position";
 import {
   DIAG,
+  flipColor,
   isNumericChar,
   isPieceChar,
   KNIGHT_LS,
   ORTHO,
   PieceType,
+  playerColor,
   STAR,
 } from "../utilities";
 
 export default class BoardModel {
   board: Array<Piece | undefined>;
   enPassantPos: Position | undefined;
+  activePlayer: playerColor;
   constructor() {
     this.board = Array(64);
     this.readFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+    this.activePlayer = "white";
   }
 
   readFen(fen: string) {
@@ -84,13 +88,9 @@ export default class BoardModel {
     this.board[dest_idx] = piece;
   }
 
-  private placeAtPos(piece: Piece | undefined, pos: Position) {
-    this.board[pos.x + pos.y * 8] = piece;
-  }
-
-  private get boardCopy() {
-    return this.board.slice();
-  }
+  // private placeAtPos(piece: Piece | undefined, pos: Position) {
+  //   this.board[pos.x + pos.y * 8] = piece;
+  // }
 
   private get copy() {
     const copy = new BoardModel();
@@ -112,42 +112,47 @@ export default class BoardModel {
     ) {
       const forwardDir = piece.color == "white" ? -1 : 1;
       this._place(undefined, this.enPassantPos.add([0, -forwardDir]).toIdx);
-    } else {
-      this._place(piece, dest_idx);
-      this._place(undefined, mover_idx);
     }
+    this._place(piece, dest_idx);
+    this._place(undefined, mover_idx);
   }
 
   play(mover_idx: number, dest_idx: number) {
     const piece = this.at(mover_idx);
     if (piece === undefined) {
+      console.error("Trying to move an empty piece");
+      return;
+    } else if (piece.color !== this.activePlayer) {
+      console.error("It's not your turn.");
       return;
     }
-    const pos = Position.fromIdx(mover_idx);
-    const startingRow = piece.color == "white" ? 6 : 1;
-    const forwardDir = piece.color == "white" ? -1 : 1;
-    const posInFront = pos.add([0, forwardDir]);
-    const posIn2Front = pos.add([0, 2 * forwardDir]);
-
-    if (
-      piece.rank === "p" &&
-      pos.y === startingRow &&
-      dest_idx === posIn2Front.toIdx
-    ) {
-      this.enPassantPos = posInFront;
-    } else {
-      this.enPassantPos = undefined;
+    this.move(mover_idx, dest_idx); // move must go before en passant memo
+    {
+      // en passant memo
+      const pos = Position.fromIdx(mover_idx);
+      const startingRow = piece.color == "white" ? 6 : 1;
+      const forwardDir = piece.color == "white" ? -1 : 1;
+      const posInFront = pos.add([0, forwardDir]);
+      const posIn2Front = pos.add([0, 2 * forwardDir]);
+      if (
+        piece.rank === "p" &&
+        pos.y === startingRow &&
+        dest_idx === posIn2Front.toIdx
+      ) {
+        this.enPassantPos = posInFront;
+      } else {
+        this.enPassantPos = undefined;
+      }
     }
-    this.move(mover_idx, dest_idx);
-    console.log(this.underCheck("black"));
+    this.activePlayer = flipColor(this.activePlayer);
   }
 
-  _forward(pos: Position, d: number) {
-    const piece = this.atPos(pos);
-    if (piece === undefined) return;
-    const forwardDir = piece.color == "white" ? -1 : 1;
-    return pos.add([0, d * forwardDir]);
-  }
+  // private forward(pos: Position, d: number) {
+  //   const piece = this.atPos(pos);
+  //   if (piece === undefined) return;
+  //   const forwardDir = piece.color == "white" ? -1 : 1;
+  //   return pos.add([0, d * forwardDir]);
+  // }
 
   controlledSquares(idx: number) {
     const activePiece = this.at(idx);
@@ -184,7 +189,7 @@ export default class BoardModel {
 
   validSquares(idx: number) {
     const activePiece = this.at(idx);
-    if (activePiece === undefined) {
+    if (activePiece === undefined || activePiece.color !== this.activePlayer) {
       return [];
     }
     const myColor = activePiece.color;
@@ -243,7 +248,7 @@ export default class BoardModel {
     return arr.map((pos) => pos.toIdx);
   }
 
-  underCheck(color: "black" | "white") {
+  underCheck(color: playerColor) {
     let kingIdx;
     for (let i = 0; i < 64; i++) {
       const piece = this.at(i);

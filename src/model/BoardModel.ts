@@ -92,6 +92,14 @@ export default class BoardModel {
     this.board[dest_idx % 8][quot(dest_idx, 8)] = piece;
   }
 
+  private placeAtPos(piece: Piece | undefined, pos: Position) {
+    this.board[pos.x][pos.y] = piece;
+  }
+
+  private get boardCopy() {
+    return this.board.map((inner) => inner.slice());
+  }
+
   move(mover_idx: number, dest_idx: number) {
     const piece = this.at(mover_idx);
     this._place(piece, dest_idx);
@@ -127,6 +135,7 @@ export default class BoardModel {
       this.enPassantPos = undefined;
     }
     this.move(mover_idx, dest_idx);
+    console.log(this.underCheck("black"));
   }
 
   _forward(pos: Position, d: number) {
@@ -174,6 +183,24 @@ export default class BoardModel {
     if (activePiece === undefined) {
       return [];
     }
+    const squaresToCheck = this.validSquaresWithoutCheckingForChecks(idx);
+    const prevBoard = this.boardCopy;
+    const newValidSquares: Array<number> = [];
+    // for (const destIdx of squaresToCheck) {
+    //   this.move(idx, destIdx);
+    //   if (!this.underCheck(activePiece.color)) {
+    //     newValidSquares.push(destIdx);
+    //   }
+    //   this.board = prevBoard;
+    // }
+    return squaresToCheck;
+  }
+
+  validSquaresWithoutCheckingForChecks(idx: number) {
+    const activePiece = this.at(idx);
+    if (activePiece === undefined) {
+      return [];
+    }
     const pos = Position.fromIdx(idx);
     const myColor = activePiece.color;
     const theirColor = activePiece.color === "white" ? "black" : "white";
@@ -210,5 +237,33 @@ export default class BoardModel {
     }
     arr = arr.filter((pos) => this.atPos(pos)?.color !== myColor);
     return arr.map((pos) => pos.toIdx);
+  }
+
+  underCheck(color: "black" | "white") {
+    let kingIdx;
+    for (let i = 0; i < 64; i++) {
+      const piece = this.at(i);
+      if (piece && piece.color === color && piece.rank === "k") {
+        kingIdx = i;
+        break;
+      }
+    }
+    if (kingIdx === undefined) {
+      console.error("King not found.");
+      return false;
+    }
+    for (let i = 0; i < 64; i++) {
+      const piece = this.at(i);
+      if (
+        piece &&
+        piece.color !== color &&
+        this.controlledSquares(i)
+          .map((x) => x.toIdx)
+          .includes(kingIdx)
+      ) {
+        return true;
+      }
+    }
+    return false;
   }
 }

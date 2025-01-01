@@ -9,6 +9,7 @@ import {
   ORTHO,
   PieceType,
   playerColor,
+  quot,
   STAR,
 } from "../utilities";
 
@@ -28,7 +29,7 @@ export default class BoardModel {
   };
 
   constructor(fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR") {
-    fen = "r3k2r/8/8/8/8/8/8/R3K2R";
+    // fen = "r3k2r/8/8/8/8/8/8/R3K2R";
     this.board = Array(64);
     this.readFen(fen);
     this.activePlayer = "white";
@@ -162,7 +163,17 @@ export default class BoardModel {
       console.error("It's not your turn.");
       return;
     }
-    this.move(mover_idx, dest_idx); // move must go before en passant memo
+
+    // promotion and MOVE
+    const lastRow = piece.color === "white" ? 0 : 7;
+    if (piece.rank === "p" && quot(dest_idx, 8) === lastRow) {
+      const q = piece.color === "white" ? "Q" : "q";
+      this._place(new Piece(q), dest_idx);
+      this._place(undefined, mover_idx);
+    } else {
+      this.move(mover_idx, dest_idx);
+    }
+    // move must go before en passant memo
 
     // en passant memo
     {

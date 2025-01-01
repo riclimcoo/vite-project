@@ -16,10 +16,32 @@ export default class BoardModel {
   board: Array<Piece | undefined>;
   enPassantPos: Position | undefined;
   activePlayer: playerColor;
-  constructor() {
+  castlingRights: {
+    white: {
+      queenSide: boolean;
+      kingSide: boolean;
+    };
+    black: {
+      queenSide: boolean;
+      kingSide: boolean;
+    };
+  };
+
+  constructor(fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR") {
+    fen = "r3k2r/8/8/8/8/8/8/R3K2R";
     this.board = Array(64);
-    this.readFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+    this.readFen(fen);
     this.activePlayer = "white";
+    this.castlingRights = {
+      white: {
+        queenSide: true,
+        kingSide: true,
+      },
+      black: {
+        queenSide: true,
+        kingSide: true,
+      },
+    };
   }
 
   readFen(fen: string) {
@@ -113,12 +135,26 @@ export default class BoardModel {
       const forwardDir = piece.color == "white" ? -1 : 1;
       this._place(undefined, this.enPassantPos.add([0, -forwardDir]).toIdx);
     }
+    // castle
+    const didCastle =
+      piece.rank === "k" && Math.abs((mover_idx % 8) - (dest_idx % 8)) > 1;
+    if (didCastle) {
+      const side = dest_idx - mover_idx > 0 ? "kingSide" : "queenSide";
+      const dir = side === "kingSide" ? 1 : -1;
+      const rookIdx = new Position(
+        side === "queenSide" ? 0 : 7,
+        piece.color === "black" ? 0 : 7
+      ).toIdx;
+      const rookDest = Position.fromIdx(dest_idx).add([-dir, 0]).toIdx;
+      this.move(rookIdx, rookDest);
+    }
     this._place(piece, dest_idx);
     this._place(undefined, mover_idx);
   }
 
   play(mover_idx: number, dest_idx: number) {
     const piece = this.at(mover_idx);
+    const pos = Position.fromIdx(mover_idx);
     if (piece === undefined) {
       console.error("Trying to move an empty piece");
       return;
@@ -127,9 +163,9 @@ export default class BoardModel {
       return;
     }
     this.move(mover_idx, dest_idx); // move must go before en passant memo
+
+    // en passant memo
     {
-      // en passant memo
-      const pos = Position.fromIdx(mover_idx);
       const startingRow = piece.color == "white" ? 6 : 1;
       const forwardDir = piece.color == "white" ? -1 : 1;
       const posInFront = pos.add([0, forwardDir]);
@@ -144,6 +180,25 @@ export default class BoardModel {
         this.enPassantPos = undefined;
       }
     }
+
+    // castle memo
+    if (piece.rank === "k") {
+      this.castlingRights[piece.color].kingSide = false;
+      this.castlingRights[piece.color].queenSide = false;
+    }
+    if (
+      piece.rank === "r" &&
+      mover_idx === (piece.color === "black" ? 0 : 7) * 8
+    ) {
+      this.castlingRights[piece.color].queenSide = false;
+    }
+    if (
+      piece.rank === "r" &&
+      mover_idx === 7 + (piece.color === "black" ? 0 : 7) * 8
+    ) {
+      this.castlingRights[piece.color].kingSide = false;
+    }
+
     this.activePlayer = flipColor(this.activePlayer);
   }
 
@@ -202,6 +257,18 @@ export default class BoardModel {
         newValidSquares.push(destIdx);
       }
     }
+
+    // Castle Logic
+    if (activePiece.rank === "k") {
+      const pos = Position.fromIdx(idx);
+      if (this.canCastle(myColor, "queenSide")) {
+        newValidSquares.push(pos.add([-2, 0]).toIdx);
+      }
+      if (this.canCastle(myColor, "kingSide")) {
+        newValidSquares.push(pos.add([2, 0]).toIdx);
+      }
+    }
+
     return newValidSquares;
   }
 
@@ -241,11 +308,41 @@ export default class BoardModel {
         arr = arr.concat(pawnCapturePos);
         break;
 
+      case "k":
+        // castle
+        if (this.canCastle(myColor, "queenSide")) {
+          arr.push(pos.add([-2, 0]));
+        }
+        if (this.canCastle(myColor, "kingSide")) {
+          arr.push(pos.add([2, 0]));
+        }
+        arr = this.controlledSquares(idx);
+        break;
       default:
         arr = this.controlledSquares(idx);
     }
     arr = arr.filter((pos) => this.atPos(pos)?.color !== myColor);
     return arr.map((pos) => pos.toIdx);
+  }
+
+  // where(pieceType: PieceType) {
+  //   for (let i = 0; i < 64; i++) {
+  //     const piece = this.at(i);
+  //     if (piece && piece.type == pieceType) {
+  //       return i;
+  //     }
+  //   }
+  //   return undefined;
+  // }
+
+  findKing(color: playerColor) {
+    for (let i = 0; i < 64; i++) {
+      const piece = this.at(i);
+      if (piece && piece.color === color && piece.rank === "k") {
+        return i;
+      }
+    }
+    throw new Error("No king found");
   }
 
   underCheck(color: playerColor) {
@@ -274,5 +371,45 @@ export default class BoardModel {
       }
     }
     return false;
+  }
+
+  safe(idx: number, color: playerColor) {
+    for (let i = 0; i < 64; i++) {
+      const piece = this.at(i);
+      if (
+        piece &&
+        piece.color === flipColor(color) &&
+        this.controlledSquares(i)
+          .map((x) => x.toIdx)
+          .includes(idx)
+      ) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  canCastle(color: playerColor, side: "queenSide" | "kingSide") {
+    const kingIdx = this.findKing(color);
+
+    const disps: Array<disp> =
+      side === "queenSide"
+        ? [
+            [-3, 0],
+            [-2, 0],
+            [-1, 0],
+          ]
+        : [
+            [1, 0],
+            [2, 0],
+          ];
+
+    if (this.castlingRights[color][side] === false) {
+      return false;
+    }
+    const pos = Position.fromIdx(kingIdx);
+    return disps
+      .map((disp) => pos.add(disp).toIdx)
+      .every((p) => this.at(p) === undefined && this.safe(p, color));
   }
 }

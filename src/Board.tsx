@@ -21,7 +21,7 @@ export function Board({
   );
 
   function handleClick(newIdx: number) {
-    console.log(board);
+    console.log(boardModel.canCastle("black", "queenSide"));
     function clear() {
       setActiveSquare(null);
       setHighlightedSquares([]);
